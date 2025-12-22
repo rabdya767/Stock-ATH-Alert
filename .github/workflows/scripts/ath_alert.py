@@ -48,3 +48,4 @@ with smtplib.SMTP(os.getenv("SMTP_HOST"), int(os.getenv("SMTP_PORT"))) as server
     server.send_message(msg)
 
 print("Alert email sent.")
+
