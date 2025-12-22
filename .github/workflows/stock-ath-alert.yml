@@ -8,6 +8,7 @@ on:
       stocks:
         description: 'Extra Yahoo symbols (comma-separated)'
         required: false
+        default: "RELIANCE.NS,TCS.NS,HDFCBANK.NS,INFY.NS,ICICIBANK.NS,HINDUNILVR.NS,LT.NS,ITC.NS,SBIN.NS,AXISBANK.NS,KOTAKBANK.NS,BAJFINANCE.NS,BAJAJFINSV.NS,ASIANPAINT.NS,MARUTI.NS,SUNPHARMA.NS,TITAN.NS,ULTRACEMCO.NS,POWERGRID.NS,NTPC.NS"
 
 env:
   BASE_STOCKS: >-
@@ -66,3 +67,4 @@ jobs:
           EMAIL_FROM: ${{ secrets.EMAIL_FROM }}
         run: |
           python .github/workflows/scripts/ath_alert.py
+
