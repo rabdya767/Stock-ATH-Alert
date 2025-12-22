@@ -6,19 +6,23 @@ on:
   workflow_dispatch:
     inputs:
       stocks:
-        description: 'Comma-separated Yahoo symbols (e.g. NIFTYBEES.NS,JUNIORBEES.NS,TCS.NS)'
+        description: 'Extra Yahoo symbols (comma-separated)'
         required: false
-        default: 'NIFTYBEES.NS,JUNIORBEES.NS,BANKBEES.NS,HNGSNGBEES.NS,SILVERBEES.NS,AUTOBEES.NS,HDFCBANK.NS'
+
+env:
+  BASE_STOCKS: >-
+    NIFTYBEES.NS,JUNIORBEES.NS,NIFTY100BEES.NS,BANKBEES.NS,ITBEES.NS,
+    MIDCAPBEES.NS,SML250BEES.NS,FMCGBEES.NS,PHARMABEES.NS,AUTOBEES.NS,
+    METALBEES.NS,ENERGYBEES.NS,PSUBNKBEES.NS,REALTYBEES.NS,INFRABEES.NS,
+    LOWVOLBEES.NS,ALPHABEES.NS,QUALITYBEES.NS,MOMENTUMBEES.NS,VALUEBEES.NS,
+    ^BSESN,^BSE100,^BSE200,^BSE500,^BSEMDCP,^BSESMLCP,^BSEBANK
 
 jobs:
   ath-check:
     runs-on: ubuntu-latest
 
-    env:
-      STOCKS: ${{ github.event.inputs.stocks || 'NIFTYBEES.NS,JUNIORBEES.NS,BANKBEES.NS,HNGSNGBEES.NS,SILVERBEES.NS,AUTOBEES.NS,HDFCBANK.NS' }}
-
     steps:
-      - name: Checkout
+      - name: Checkout repository
         uses: actions/checkout@v4
 
       - name: Setup Python
@@ -30,6 +34,28 @@ jobs:
         run: |
           pip install yfinance pandas
 
+      - name: Build STOCKS list (append + deduplicate)
+        run: |
+          INPUT_STOCKS="${{ github.event.inputs.stocks }}"
+
+          if [ -n "$INPUT_STOCKS" ]; then
+            ALL_STOCKS="${BASE_STOCKS},$INPUT_STOCKS"
+          else
+            ALL_STOCKS="${BASE_STOCKS}"
+          fi
+
+          # Remove spaces, split, deduplicate, rejoin
+          FINAL_STOCKS=$(echo "$ALL_STOCKS" \
+            | tr -d ' ' \
+            | tr ',' '\n' \
+            | sort -u \
+            | paste -sd ',' -)
+
+          echo "STOCKS=$FINAL_STOCKS" >> $GITHUB_ENV
+
+          echo "Final STOCKS list:"
+          echo "$FINAL_STOCKS" | tr ',' '\n'
+
       - name: Check ATH decline and send email
         env:
           SMTP_HOST: ${{ secrets.SMTP_HOST }}
@@ -40,5 +66,3 @@ jobs:
           EMAIL_FROM: ${{ secrets.EMAIL_FROM }}
         run: |
           python .github/workflows/scripts/ath_alert.py
-
-
