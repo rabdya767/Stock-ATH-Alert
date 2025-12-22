@@ -39,4 +39,5 @@ jobs:
           EMAIL_TO: ${{ secrets.EMAIL_TO }}
           EMAIL_FROM: ${{ secrets.EMAIL_FROM }}
         run: |
-          python scripts/ath_alert.py
+          python .github/workflows/scripts/ath_alert.py
+
