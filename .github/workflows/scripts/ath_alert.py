@@ -4,7 +4,7 @@ import smtplib
 from email.mime.text import MIMEText
 
 # ---------- CONFIG ----------
-DECLINE_LEVELS = [5, 10, 15]
+DECLINE_LEVELS = [2, 5, 7, 10, 15]
 
 # ---------- READ STOCKS ----------
 stocks_env = os.getenv("STOCKS", "")
@@ -121,3 +121,4 @@ with smtplib.SMTP(os.getenv("SMTP_HOST"), int(os.getenv("SMTP_PORT"))) as server
     server.send_message(msg)
 
 print("Alert email sent successfully.")
+
