@@ -1,0 +1,42 @@
+name: Stock ATH Decline Alert
+
+on:
+  schedule:
+    - cron: '0 14 * * *'   # 7:30 PM IST
+  workflow_dispatch:
+    inputs:
+      stocks:
+        description: 'Comma-separated Yahoo symbols (e.g. NIFTYBEES.NS,JUNIORBEES.NS,TCS.NS)'
+        required: false
+        default: 'NIFTYBEES.NS,JUNIORBEES.NS'
+
+jobs:
+  ath-check:
+    runs-on: ubuntu-latest
+
+    env:
+      STOCKS: ${{ github.event.inputs.stocks || 'NIFTYBEES.NS,JUNIORBEES.NS' }}
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Install dependencies
+        run: |
+          pip install yfinance pandas
+
+      - name: Check ATH decline and send email
+        env:
+          SMTP_HOST: ${{ secrets.SMTP_HOST }}
+          SMTP_PORT: ${{ secrets.SMTP_PORT }}
+          SMTP_USERNAME: ${{ secrets.SMTP_USERNAME }}
+          SMTP_PASSWORD: ${{ secrets.SMTP_PASSWORD }}
+          EMAIL_TO: ${{ secrets.EMAIL_TO }}
+          EMAIL_FROM: ${{ secrets.EMAIL_FROM }}
+        run: |
+          python scripts/ath_alert.py
