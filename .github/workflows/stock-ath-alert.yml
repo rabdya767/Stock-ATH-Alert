@@ -8,14 +8,14 @@ on:
       stocks:
         description: 'Comma-separated Yahoo symbols (e.g. NIFTYBEES.NS,JUNIORBEES.NS,TCS.NS)'
         required: false
-        default: 'NIFTYBEES.NS,JUNIORBEES.NS'
+        default: 'NIFTYBEES.NS,JUNIORBEES.NS,BANKBEES.NS,HNGSNGBEES.NS,SILVERBEES.NS,AUTOBEES.NS,HDFCBANK.NS'
 
 jobs:
   ath-check:
     runs-on: ubuntu-latest
 
     env:
-      STOCKS: ${{ github.event.inputs.stocks || 'NIFTYBEES.NS,JUNIORBEES.NS' }}
+      STOCKS: ${{ github.event.inputs.stocks || 'NIFTYBEES.NS,JUNIORBEES.NS,BANKBEES.NS,HNGSNGBEES.NS,SILVERBEES.NS,AUTOBEES.NS,HDFCBANK.NS' }}
 
     steps:
       - name: Checkout
@@ -40,4 +40,5 @@ jobs:
           EMAIL_FROM: ${{ secrets.EMAIL_FROM }}
         run: |
           python .github/workflows/scripts/ath_alert.py
+
 
