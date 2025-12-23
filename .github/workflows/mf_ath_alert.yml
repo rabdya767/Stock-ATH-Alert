@@ -35,7 +35,7 @@ jobs:
           EMAIL_TO:   ${{ secrets.EMAIL_TO }}
           INPUT_SCHEMES: ${{ github.event.inputs.schemes }}
         run: |
-          python script.py
+          python .github/workflows/scripts.py
 
       - name: Commit state file
         run: |
