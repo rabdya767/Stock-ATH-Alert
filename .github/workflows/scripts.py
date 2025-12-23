@@ -17,11 +17,16 @@ JIOBLACKROCK_FUNDS = {
     "JioBlackRock Nifty Midcap 150 Index Fund - Direct Growth": "153788",
     "JioBlackRock Nifty Smallcap 250 Index Fund - Direct Growth": "153790",
     "JioBlackRock Flexi Cap Fund - Direct Growth": "153859",
-    "Helios Small Cap Fund - Direct Plan - Growth": "153912"
+    "Helios Small Cap Fund - Direct Plan - Growth": "153912",
+    "Quant ELSS Tax Saver Fund - Growth Option - Direct Plan": "120847",
+    "TATA Small Cap Fund Direct Plan": "145209",
+    "Nippon India Small Cap Fund - Direct Plan Growth Plan":"118778",
+    "Parag Parikh Flexi Cap Fund - Direct Plan - Growth": "122639",
+    
 }
 
 ADDITIONAL_FUNDS = {
-    "Helios Small Cap Fund - Direct Growth": "INF0R8701384"
+    "Helios Small Cap Fund - Direct Growth": "153912"
 }
 
 # ------------------ COMBINE SCHEMES ------------------
