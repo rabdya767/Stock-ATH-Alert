@@ -26,8 +26,8 @@ jobs:
 
       - name: Install dependencies
         run: |
-          pip install -r requirements.txt
-
+          python -m pip install --upgrade pip
+          pip install requests pandas
       - name: Run ATH Alert Script
         env:
           EMAIL_USER: ${{ secrets.EMAIL_USER }}
