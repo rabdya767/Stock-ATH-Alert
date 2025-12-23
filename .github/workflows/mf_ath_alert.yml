@@ -1,0 +1,46 @@
+name: Mutual Fund ATH Alert
+
+on:
+  schedule:
+    # 7:30 PM IST = 14:00 UTC
+    - cron: "0 14 * * *"
+  workflow_dispatch:
+    inputs:
+      schemes:
+        description: 'Comma-separated list of additional scheme names to track (optional)'
+        required: false
+        default: ''
+
+jobs:
+  run-alert:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repo
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Install dependencies
+        run: |
+          pip install -r requirements.txt
+
+      - name: Run ATH Alert Script
+        env:
+          EMAIL_USER: ${{ secrets.EMAIL_USER }}
+          EMAIL_PASS: ${{ secrets.EMAIL_PASS }}
+          EMAIL_TO:   ${{ secrets.EMAIL_TO }}
+          INPUT_SCHEMES: ${{ github.event.inputs.schemes }}
+        run: |
+          python script.py
+
+      - name: Commit state file
+        run: |
+          git config --global user.name "github-actions"
+          git config --global user.email "actions@github.com"
+          git add state.json
+          git commit -m "Update MF ATH alert state" || echo "No changes"
+          git push
