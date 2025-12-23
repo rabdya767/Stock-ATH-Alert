@@ -4,38 +4,32 @@ import smtplib
 import os
 import json
 from email.mime.text import MIMEText
-from email.mime.multipart import MIMEMultipart
 
 # ------------------ CONFIG ------------------
 STATE_FILE = "state.json"
 THRESHOLDS = [2, 5, 10, 20]
 
-EMAIL_USER = os.getenv("EMAIL_USER")
-EMAIL_PASS = os.getenv("EMAIL_PASS")
-EMAIL_TO   = os.getenv("EMAIL_TO")
 INPUT_SCHEMES = os.getenv("INPUT_SCHEMES", "").strip()
+HEADERS = {"User-Agent": "Mozilla/5.0 (GitHub Actions)"}
 
-# ------------------ DEFAULT JIO FUNDS ------------------
+# ------------------ DEFAULT FUNDS ------------------
 JIOBLACKROCK_FUNDS = {
-    "JioBlackRock Nifty 50 Index Fund - Direct Growth": "INF22M001044",
-    "JioBlackRock Nifty Next 50 Index Fund - Direct Growth": "INF22M001085",
-    "JioBlackRock Nifty Midcap 150 Index Fund - Direct Growth": "INF22M001077",
-    "JioBlackRock Nifty Smallcap 250 Index Fund - Direct Growth": "INF22M001051",
-    "JioBlackRock Nifty 8-13 yr G-Sec Index Fund - Direct Growth": "INF22M001069",
-    "JioBlackRock Flexi Cap Fund - Direct Growth": "INF22M001093",
-    "JioBlackRock Money Market Fund - Direct Growth": "INF22M001028",
+    "JioBlackRock Nifty 50 Index Fund - Direct Growth": "153787",
+    "JioBlackRock Nifty Next 50 Index Fund - Direct Growth": "153789",
+    "JioBlackRock Nifty Midcap 150 Index Fund - Direct Growth": "153788",
+    "JioBlackRock Nifty Smallcap 250 Index Fund - Direct Growth": "153790",
+    "JioBlackRock Flexi Cap Fund - Direct Growth": "153859",
+    "Helios Small Cap Fund - Direct Plan - Growth": "153912"
 }
 
-# ------------------ ADDITIONAL FUNDS ------------------
 ADDITIONAL_FUNDS = {
-    "Helios Small Cap Fund - Direct Growth": "INF0R8701384"
+    "Helios Small Cap Fund - Direct Growth": "153912"
 }
 
 # ------------------ COMBINE SCHEMES ------------------
 SCHEMES_TO_USE = JIOBLACKROCK_FUNDS.copy()
 if INPUT_SCHEMES:
-    user_selected = [name.strip() for name in INPUT_SCHEMES.split(",")]
-    for name in user_selected:
+    for name in [x.strip() for x in INPUT_SCHEMES.split(",")]:
         if name in ADDITIONAL_FUNDS:
             SCHEMES_TO_USE[name] = ADDITIONAL_FUNDS[name]
 
@@ -48,21 +42,33 @@ def load_state():
 
 def save_state(state):
     with open(STATE_FILE, "w") as f:
-        json.dump(state, f, indent=2, default=str)
+        json.dump(state, f, indent=2)
 
 # ------------------ NAV FETCH ------------------
 def fetch_nav_history(code):
     url = f"https://api.mfapi.in/mf/{code}"
-    data = requests.get(url).json()
+    resp = requests.get(url, headers=HEADERS, timeout=10)
+    if resp.status_code != 200:
+        raise RuntimeError(f"HTTP {resp.status_code}")
+    if not resp.text.strip():
+        raise RuntimeError("Empty response")
+    try:
+        data = resp.json()
+    except ValueError:
+        raise RuntimeError("Invalid JSON response")
+    if "data" not in data or not data["data"]:
+        raise RuntimeError("No NAV data")
     df = pd.DataFrame(data["data"])
-    df["nav"] = df["nav"].astype(float)
-    df["date"] = pd.to_datetime(df["date"], dayfirst=True)
+    df["nav"] = pd.to_numeric(df["nav"], errors="coerce")
+    df["date"] = pd.to_datetime(df["date"], dayfirst=True, errors="coerce")
+    df = df.dropna()
+    if df.empty:
+        raise RuntimeError("NAV data invalid after cleaning")
     return df.sort_values("date")
 
 # ------------------ ANALYSIS ------------------
 def analyze_fund(name, code, state):
     df = fetch_nav_history(code)
-
     ath_row = df.loc[df["nav"].idxmax()]
     latest_row = df.iloc[-1]
 
@@ -73,22 +79,14 @@ def analyze_fund(name, code, state):
 
     decline = ((ath_nav - current_nav) / ath_nav) * 100
 
-    fund_state = state.get(name, {
-        "ath_nav": ath_nav,
-        "ath_date": str(ath_date),
-        "last_alert": 0
-    })
+    fund_state = state.get(name, {"ath_nav": ath_nav, "ath_date": str(ath_date), "last_alert": 0})
 
-    # Reset alerts if new ATH
     if ath_nav > fund_state["ath_nav"]:
         fund_state["ath_nav"] = ath_nav
         fund_state["ath_date"] = str(ath_date)
         fund_state["last_alert"] = 0
 
-    triggered = [
-        t for t in THRESHOLDS
-        if decline >= t and t > fund_state["last_alert"]
-    ]
+    triggered = [t for t in THRESHOLDS if decline >= t and t > fund_state["last_alert"]]
 
     if triggered:
         fund_state["last_alert"] = max(triggered)
@@ -96,91 +94,49 @@ def analyze_fund(name, code, state):
     state[name] = fund_state
 
     if triggered:
-        return {
-            "Fund": name,
-            "ATH NAV": ath_nav,
-            "ATH Date": ath_date,
-            "Current NAV": current_nav,
-            "NAV Date": current_date,
-            "Decline %": round(decline, 2),
-            "Triggered Level": f"{max(triggered)}%"
-        }
+        return f"{name}: Down {decline:.2f}% from ATH\nATH: ₹{ath_nav:.2f}, Current: ₹{current_nav:.2f}"
 
     return None
 
 # ------------------ EMAIL ------------------
-def send_email(df):
-    # Start HTML table
-    html = """
-    <html>
-      <body>
-        <p>The following mutual funds have declined from their ATH:</p>
-        <table border="1" cellpadding="5" cellspacing="0" style="border-collapse: collapse;">
-          <tr>
-            <th>Fund</th>
-            <th>ATH NAV</th>
-            <th>ATH Date</th>
-            <th>Current NAV</th>
-            <th>NAV Date</th>
-            <th>Decline %</th>
-            <th>Triggered Level</th>
-          </tr>
-    """
+def send_email(alerts):
+    email_body = "\n\n".join(alerts)
+    print(email_body)
 
-    for _, row in df.iterrows():
-        decline = row['Decline %']
-        if decline > 10:
-            bgcolor = '#8B0000'  # Deep red
-            font_color = 'white'
-        elif decline >= 5:
-            bgcolor = '#FF0000'  # Red
-            font_color = 'white'
-        elif decline >= 3:
-            bgcolor = '#FF7F7F'  # Light red
-            font_color = 'black'
-        else:
-            bgcolor = 'white'
-            font_color = 'black'
+    msg = MIMEText(email_body)
+    msg["Subject"] = "📉 Mutual Fund Alert: Down from ATH"
+    msg["From"] = os.getenv("EMAIL_FROM")
+    msg["To"] = os.getenv("EMAIL_TO")
 
-        html += f"""
-        <tr style="background-color:{bgcolor}; color:{font_color}; font-weight:bold;">
-            <td>{row['Fund']}</td>
-            <td>{row['ATH NAV']}</td>
-            <td>{row['ATH Date']}</td>
-            <td>{row['Current NAV']}</td>
-            <td>{row['NAV Date']}</td>
-            <td>{row['Decline %']}</td>
-            <td>{row['Triggered Level']}</td>
-        </tr>
-        """
+    smtp_host = os.getenv("SMTP_HOST", "smtp.gmail.com")
+    smtp_port = int(os.getenv("SMTP_PORT", 587))  # 587 with STARTTLS
 
-    html += """
-        </table>
-      </body>
-    </html>
-    """
-
-    msg = MIMEMultipart()
-    msg["From"] = EMAIL_USER
-    msg["To"] = EMAIL_TO
-    msg["Subject"] = "📉 Mutual Fund Drawdown Alert"
-    msg.attach(MIMEText(html, "html"))
-
-    with smtplib.SMTP_SSL("smtp.gmail.com", 465) as server:
-        server.login(EMAIL_USER, EMAIL_PASS)
+    with smtplib.SMTP(smtp_host, smtp_port, timeout=60) as server:
+        server.ehlo()
+        server.starttls()
+        server.ehlo()
+        server.login(os.getenv("SMTP_USERNAME"), os.getenv("SMTP_PASSWORD"))
         server.send_message(msg)
+
+    print("✅ Alert email sent.")
 
 # ------------------ MAIN ------------------
 state = load_state()
 alerts = []
 
 for name, code in SCHEMES_TO_USE.items():
-    result = analyze_fund(name, code, state)
-    if result:
-        alerts.append(result)
+    try:
+        print(f"Fetching {name} ({code})")
+        result = analyze_fund(name, code, state)
+        if result:
+            alerts.append(result)
+    except Exception as e:
+        print(f"❌ Skipping {name}: {e}")
 
 if alerts:
-    df_alerts = pd.DataFrame(alerts)
-    send_email(df_alerts)
+    send_email(alerts)
+else:
+    print("No alerts triggered.")
 
 save_state(state)
+print("✅ Script completed successfully")
