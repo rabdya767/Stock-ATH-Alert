@@ -1,9 +1,7 @@
 import requests
 import pandas as pd
-import smtplib
 import os
 import json
-from email.mime.text import MIMEText
 
 # ------------------ CONFIG ------------------
 STATE_FILE = "state.json"
@@ -23,7 +21,7 @@ JIOBLACKROCK_FUNDS = {
 }
 
 ADDITIONAL_FUNDS = {
-    "Helios Small Cap Fund - Direct Growth": "153912"
+    "Helios Small Cap Fund - Direct Growth": "INF0R8701384"
 }
 
 # ------------------ COMBINE SCHEMES ------------------
@@ -42,7 +40,7 @@ def load_state():
 
 def save_state(state):
     with open(STATE_FILE, "w") as f:
-        json.dump(state, f, indent=2)
+        json.dump(state, f, indent=2, default=str)
 
 # ------------------ NAV FETCH ------------------
 def fetch_nav_history(code):
@@ -52,18 +50,13 @@ def fetch_nav_history(code):
         raise RuntimeError(f"HTTP {resp.status_code}")
     if not resp.text.strip():
         raise RuntimeError("Empty response")
-    try:
-        data = resp.json()
-    except ValueError:
-        raise RuntimeError("Invalid JSON response")
+    data = resp.json()
     if "data" not in data or not data["data"]:
         raise RuntimeError("No NAV data")
     df = pd.DataFrame(data["data"])
     df["nav"] = pd.to_numeric(df["nav"], errors="coerce")
     df["date"] = pd.to_datetime(df["date"], dayfirst=True, errors="coerce")
     df = df.dropna()
-    if df.empty:
-        raise RuntimeError("NAV data invalid after cleaning")
     return df.sort_values("date")
 
 # ------------------ ANALYSIS ------------------
@@ -93,32 +86,15 @@ def analyze_fund(name, code, state):
 
     state[name] = fund_state
 
-    if triggered:
-        return f"{name}: Down {decline:.2f}% from ATH\nATH: ₹{ath_nav:.2f}, Current: ₹{current_nav:.2f}"
-
-    return None
-
-# ------------------ EMAIL ------------------
-def send_email(alerts):
-    email_body = "\n\n".join(alerts)
-    print(email_body)
-
-    msg = MIMEText(email_body)
-    msg["Subject"] = "📉 Mutual Fund Alert: Down from ATH"
-    msg["From"] = os.getenv("EMAIL_FROM")
-    msg["To"] = os.getenv("EMAIL_TO")
-
-    smtp_host = os.getenv("SMTP_HOST", "smtp.gmail.com")
-    smtp_port = int(os.getenv("SMTP_PORT", 587))  # 587 with STARTTLS
-
-    with smtplib.SMTP(smtp_host, smtp_port, timeout=60) as server:
-        server.ehlo()
-        server.starttls()
-        server.ehlo()
-        server.login(os.getenv("SMTP_USERNAME"), os.getenv("SMTP_PASSWORD"))
-        server.send_message(msg)
-
-    print("✅ Alert email sent.")
+    return {
+        "Fund": name,
+        "ATH NAV": round(ath_nav, 2),
+        "ATH Date": ath_date,
+        "Current NAV": round(current_nav, 2),
+        "NAV Date": current_date,
+        "Decline %": round(decline, 2),
+        "Triggered Level": f"{max(triggered)}%" if triggered else "-"
+    }
 
 # ------------------ MAIN ------------------
 state = load_state()
@@ -128,15 +104,15 @@ for name, code in SCHEMES_TO_USE.items():
     try:
         print(f"Fetching {name} ({code})")
         result = analyze_fund(name, code, state)
-        if result:
-            alerts.append(result)
+        alerts.append(result)
     except Exception as e:
         print(f"❌ Skipping {name}: {e}")
 
-if alerts:
-    send_email(alerts)
-else:
-    print("No alerts triggered.")
+# Convert to DataFrame for pretty printing
+df_alerts = pd.DataFrame(alerts)
+print("\n📊 Mutual Fund ATH Alerts:\n")
+print(df_alerts.to_string(index=False))
 
+# Save state
 save_state(state)
-print("✅ Script completed successfully")
+print("\n✅ Script completed successfully")
