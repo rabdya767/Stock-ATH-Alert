@@ -144,6 +144,7 @@ html_body += """
 """
 
 # ---------- SEND EMAIL ----------
+print(html_body)
 msg = MIMEText(html_body, "html")
 msg["Subject"] = "📉 Stock Alert: Down from ATH"
 msg["From"] = os.getenv("EMAIL_FROM")
@@ -158,3 +159,4 @@ with smtplib.SMTP(os.getenv("SMTP_HOST"), int(os.getenv("SMTP_PORT"))) as server
     server.send_message(msg)
 
 print("Alert email sent successfully.")
+
